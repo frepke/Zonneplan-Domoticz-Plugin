@@ -14,7 +14,6 @@
     </description>
     <params>
         <param field="Username" label="Zonneplan e-mail" width="250px" required="true" />
-        <param field="Mode3" label="Connection UUID (leeg laten = automatisch)" width="350px" required="false" default="" />
         <param field="Mode1" label="Add missing devices" width="120px" required="true" default="Yes">
             <options>
                 <option label="Yes" value="Yes" default="true" />
@@ -92,7 +91,6 @@ class Plugin:
 
     def onStart(self):
         self.email = Parameters["Username"].strip()
-        self.connection_uuid = Parameters["Mode3"].strip()
         self.add_devices = (Parameters["Mode1"] == "Yes")
 
         try:
