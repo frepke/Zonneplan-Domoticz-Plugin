@@ -38,13 +38,13 @@ pip3 install requests
 1. Go to your Domoticz plugins folder:
 
 ```bash
-cd /opt/domoticz/userdata/plugins   # or wherever your plugins folder is
+cd /opt/domoticz/userdata/plugins
 ```
 
 2. Clone this repository:
 
 ```bash
-git clone https://github.com/yourusername/zonneplan-domoticz.git
+git clone https://github.com/frepke/Zonneplan-Domoticz-Plugin.git
 ```
 
 3. Restart Domoticz:
@@ -62,7 +62,7 @@ sudo systemctl restart domoticz
 
 6. Check your inbox — click the link in the Zonneplan login email
 
-7. Done. The plugin authenticates, discovers your connection automatically, and starts fetching prices.
+7. Done. The plugin authenticates, discovers your connection UUID automatically, and starts fetching prices.
 
 ## Configuration
 
@@ -88,7 +88,7 @@ storage.py         # JSON-based local storage
 constants.py       # Configuration constants
 ```
 
-## Data folder (auto-created, do not commit)
+## Data folder (auto-created, never committed)
 
 ```
 data/
