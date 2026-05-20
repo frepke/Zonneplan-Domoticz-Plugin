@@ -39,8 +39,8 @@ DEVICE_DEFS = [
     (UNIT_ELEC_INCL, "Actual Electricity Price", "Custom", {"Custom": "1;€ / kWh"}),
     (UNIT_GAS_INCL, "Actual Gas Price", "Custom", {"Custom": "1;€ / m3"}),
 
-    (UNIT_STATUS, "Zonneplan - Status", "Text", {}),
+    (UNIT_STATUS, "Status", "Text", {}),
     (UNIT_LOGIN, "Login", "Switch", {}),
-    (UNIT_LASTUPDATE, "Zonneplan - Update", "Text", {}),
+    (UNIT_LASTUPDATE, "Last Update", "Text", {}),
     (UNIT_FORECAST_JSON, "Forecast JSON", "Text", {}),
 ]
