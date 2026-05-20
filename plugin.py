@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-<plugin key="zonneplan-prices" name="Zonneplan Prices" author="Patrick" version="0.5.8" externallink="">
+<plugin key="zonneplan-prices" name="Zonneplan" author="Patrick" version="1.0.0" externallink="https://github.com/frepke/Zonneplan-Domoticz-Plugin">
     <description>
         Zonneplan prijzen (stroom/gas) + login flow + forecast JSON for custom widget.
         - Remote fetch: scheduled times per day (local).
