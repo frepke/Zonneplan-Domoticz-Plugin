@@ -1,0 +1,17 @@
+# Zonneplan plugin runtime data — never commit these
+data/
+data/token.json
+data/state.json
+data/summary_cache.json
+data/gas_cache.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+
+# Editor
+.vscode/
+.idea/
+*.swp
