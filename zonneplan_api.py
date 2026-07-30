@@ -171,7 +171,7 @@ class ZonneplanApi:
 
     def parse_current_prices_from_summary(self, summary_cache):
         """
-        Returns current-hour prices from summary, INCL only.
+        Returns current-hour purchase and sell prices supplied by Zonneplan.
         """
         if not isinstance(summary_cache, dict):
             return None
@@ -191,6 +191,9 @@ class ZonneplanApi:
                 return {
                     "timeslot": dt.strftime("%Y-%m-%d %H:%M:%S"),
                     "electricity_price_incl": self._scale(item.get("electricity_price")),
+                    "electricity_sell_price_ex_tax": self._scale(
+                        item.get("electricity_price_excl_tax")
+                    ),
                     "gas_price_incl": self._scale(item.get("gas_price")),
                 }
 
@@ -223,7 +226,14 @@ class ZonneplanApi:
 
         return {"gas_price_incl": None}
 
-    def build_forecast_payload_from_summary(self, summary_cache, gas_cache, updated, past_hours=2, future_hours=30):
+    def build_forecast_payload_from_summary(
+        self,
+        summary_cache,
+        gas_cache,
+        updated,
+        past_hours=2,
+        future_hours=30,
+    ):
         """
         updated: string timestamp to show in widget, typically last_remote_fetch
         """
@@ -256,6 +266,10 @@ class ZonneplanApi:
                     # NEW: store raw integer too (stable for fingerprinting)
                     "price_raw": item.get("electricity_price"),
                     "price": self._scale(item.get("electricity_price")),
+                    "sell_price_ex_tax_raw": item.get("electricity_price_excl_tax"),
+                    "sell_price_ex_tax": self._scale(
+                        item.get("electricity_price_excl_tax")
+                    ),
 
                     "group": item.get("tariff_group"),
                     "score": item.get("sustainability_score"),
@@ -283,10 +297,14 @@ class ZonneplanApi:
         gas_fb = self.parse_gas_fallback(gas_cache)
         gas_now = gas_fb.get("gas_price_incl")
         electricity_now = current_item.get("price") if current_item else None
+        electricity_sell_now_ex_tax = (
+            current_item.get("sell_price_ex_tax") if current_item else None
+        )
 
         return {
             "updated": updated or "",
             "electricity_now": electricity_now,
+            "electricity_sell_now_ex_tax": electricity_sell_now_ex_tax,
             "gas_now": gas_now,
             "hours": combined_entries,
         }

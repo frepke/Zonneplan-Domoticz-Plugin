@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-<plugin key="zonneplan-prices" name="Zonneplan" author="Patrick" version="1.0.0" externallink="https://github.com/frepke/Zonneplan-Domoticz-Plugin">
+<plugin key="zonneplan-prices" name="Zonneplan" author="Patrick" version="1.1.0" externallink="https://github.com/frepke/Zonneplan-Domoticz-Plugin">
     <description>
         Zonneplan prijzen (stroom/gas) + login flow + forecast JSON for custom widget.
         - Remote fetch: scheduled times per day (local).
@@ -53,7 +53,7 @@ from constants import (
     FORECAST_PAST_HOURS, FORECAST_FUTURE_HOURS,
     LOGIN_COOLDOWN_SECONDS, LOGIN_PENDING_TIMEOUT_SECONDS,
 
-    UNIT_ELEC_INCL, UNIT_GAS_INCL,
+    UNIT_ELEC_INCL, UNIT_ELEC_SELL_EX_TAX, UNIT_GAS_INCL,
     UNIT_STATUS, UNIT_LOGIN, UNIT_LASTUPDATE, UNIT_FORECAST_JSON,
 
     DAILY_FETCH_TIMES, DAILY_FETCH_WINDOW_SECONDS, HEARTBEAT_SECONDS,
@@ -430,6 +430,7 @@ class Plugin:
                 basis["summary_hours"].append([
                     dt_s,
                     item.get("electricity_price"),
+                    item.get("electricity_price_excl_tax"),
                     item.get("gas_price"),
                     item.get("tariff_group"),
                     item.get("sustainability_score"),
@@ -492,9 +493,9 @@ class Plugin:
                 lines.append(f"- {k} removed")
                 continue
 
-            # fields: elec, gas, group, score (indexes 1..4)
+            # fields: purchase, sell, gas, group, score (indexes 1..5)
             diffs = []
-            labels = ["elec_raw", "gas_raw", "group", "score"]
+            labels = ["elec_raw", "sell_raw", "gas_raw", "group", "score"]
             for idx, label in enumerate(labels, start=1):
                 ov = o[idx] if len(o) > idx else None
                 nv = n[idx] if len(n) > idx else None
@@ -731,11 +732,12 @@ class Plugin:
         prices = self.api.parse_current_prices_from_summary(self.storage.summary_cache)
         gas_fb = self.api.parse_gas_fallback(self.storage.gas_cache)
 
-        elec_incl = gas_incl = None
+        elec_incl = elec_sell_ex_tax = gas_incl = None
         timeslot = "n.v.t."
 
         if prices:
             elec_incl = prices.get("electricity_price_incl")
+            elec_sell_ex_tax = prices.get("electricity_sell_price_ex_tax")
             gas_incl = prices.get("gas_price_incl")
             timeslot = prices.get("timeslot", "n.v.t.")
 
@@ -743,6 +745,7 @@ class Plugin:
             gas_incl = gas_fb.get("gas_price_incl")
 
         self._update_custom(UNIT_ELEC_INCL, elec_incl)
+        self._update_custom(UNIT_ELEC_SELL_EX_TAX, elec_sell_ex_tax)
         self._update_custom(UNIT_GAS_INCL, gas_incl, force=True)
 
         last_remote_change = self.storage.state.get("last_remote_change", "n.v.t.")

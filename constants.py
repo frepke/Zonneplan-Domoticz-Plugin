@@ -28,6 +28,7 @@ FORECAST_FUTURE_HOURS = 38
 
 # Units
 UNIT_ELEC_INCL = 1
+UNIT_ELEC_SELL_EX_TAX = 2
 UNIT_GAS_INCL = 3
 
 UNIT_STATUS = 5
@@ -37,6 +38,7 @@ UNIT_FORECAST_JSON = 8
 
 DEVICE_DEFS = [
     (UNIT_ELEC_INCL, "Actual Electricity Price", "Custom", {"Custom": "1;€ / kWh"}),
+    (UNIT_ELEC_SELL_EX_TAX, "Electricity Sell Price (ex energy tax)", "Custom", {"Custom": "1;€ / kWh"}),
     (UNIT_GAS_INCL, "Actual Gas Price", "Custom", {"Custom": "1;€ / m3"}),
 
     (UNIT_STATUS, "Status", "Text", {}),

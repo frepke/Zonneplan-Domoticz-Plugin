@@ -6,6 +6,7 @@ Unofficial [Domoticz](https://www.domoticz.com/) plugin for [Zonneplan](https://
 
 - **Automatic connection UUID discovery** — no need to look up or fill in any UUIDs manually
 - **Dynamic electricity price** (€/kWh, current hour, incl. VAT)
+- **Electricity sell price excluding energy tax** (€/kWh, current hour)
 - **Dynamic gas price** (€/m³, incl. VAT)
 - **Forecast JSON** — full price forecast for use in custom widgets (past 2h + next 38h)
 - **Fingerprint-based updates** — forecast is only written when data actually changes
@@ -17,6 +18,7 @@ Unofficial [Domoticz](https://www.domoticz.com/) plugin for [Zonneplan](https://
 | Unit | Name | Type |
 |------|------|------|
 | 1 | Actual Electricity Price | Custom sensor (€/kWh) |
+| 2 | Electricity Sell Price (ex energy tax) | Custom sensor (€/kWh) |
 | 3 | Actual Gas Price | Custom sensor (€/m³) |
 | 5 | Zonneplan - Status | Text |
 | 6 | Login | Switch |
@@ -76,6 +78,17 @@ sudo systemctl restart domoticz
 ## How it works
 
 Price data is fetched from the Zonneplan API at every full hour (00:00–23:00). On startup, data is fetched immediately if already authenticated. The forecast JSON device contains a full JSON payload intended for use with a custom Domoticz widget.
+
+The base sell price comes directly from Zonneplan's
+`electricity_price_excl_tax` API field. It is not calculated by subtracting a
+fixed tax amount, so future energy-tax changes do not require a plugin setting.
+The conditional 10% Zonnebonus is not included in this API field. Negative sell
+prices are preserved so the value can be used directly by export-limiting
+automations.
+
+The Forecast JSON contains `electricity_sell_now_ex_tax` for the current hour
+and both `sell_price_ex_tax_raw` and `sell_price_ex_tax` for every item in
+`hours`.
 
 After login, the plugin calls `/user-accounts/me` to discover your electricity connection UUID automatically and stores it locally — you never need to find or enter it yourself.
 
