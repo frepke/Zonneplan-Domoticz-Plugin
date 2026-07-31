@@ -2,11 +2,13 @@
 # -*- coding: utf-8 -*-
 
 """
-<plugin key="zonneplan-prices" name="Zonneplan" author="Patrick" version="1.1.0" externallink="https://github.com/frepke/Zonneplan-Domoticz-Plugin">
+<plugin key="zonneplan-prices" name="Zonneplan" author="Patrick" version="1.2.0" externallink="https://github.com/frepke/Zonneplan-Domoticz-Plugin">
     <description>
-        Zonneplan prijzen (stroom/gas) + login flow + forecast JSON for custom widget.
+        Zonneplan kwartierprijzen (stroom) + gas + login flow + forecast JSON.
+        - Electricity: public quarter-hour endpoint, with summary fallback.
+        - Active slot switches locally at :00, :15, :30 and :45.
         - Remote fetch: scheduled times per day (local).
-        - Actual electricity + (meestal) gas komen uit summary JSON.
+        - Gas komt meestal uit summary JSON.
         - Gas fallback endpoint alleen als summary geen gas_price bevat.
         - Forecast JSON "updated" = timestamp van laatste INHOUDELIJKE wijziging (fingerprint change),
           zodat widget en Domoticz devices exact overeenkomen.
@@ -391,7 +393,8 @@ class Plugin:
         """
         Build a stable fingerprint basis from caches for today+tomorrow only.
         Includes:
-          - summary_cache.data.price_per_hour fields (datetime + electricity + optional gas + group + score)
+          - quarter-hour electricity fields (start/end + purchase + sell + score)
+          - summary fields (hourly fallback electricity + optional gas)
           - gas_cache fallback meta price (if present)
         """
         start, end = self._cache_window_local_bounds()
@@ -399,9 +402,46 @@ class Plugin:
         basis = {
             "window_local_start": start.strftime("%Y-%m-%d %H:%M:%S"),
             "window_local_end": end.strftime("%Y-%m-%d %H:%M:%S"),
+            "electricity_slots": [],
             "summary_hours": [],
             "gas_fallback_price_raw": None,
         }
+
+        # Public quarter-hour electricity chart
+        electricity = self.storage.electricity_cache if self.storage else None
+        quarter_items = None
+        if isinstance(electricity, dict):
+            try:
+                quarter_items = electricity["data"]["chart"]["series"]["prices"]
+            except Exception:
+                quarter_items = None
+
+        if isinstance(quarter_items, list):
+            for item in quarter_items:
+                if not isinstance(item, dict):
+                    continue
+                dt_s = item.get("start_date")
+                if not dt_s:
+                    continue
+                try:
+                    dt = datetime.fromisoformat(dt_s.replace("Z", "+00:00")).astimezone()
+                except Exception:
+                    continue
+                if not (start <= dt < end):
+                    continue
+
+                incl = item.get("price_tax_included", {}) or {}
+                excl = item.get("price_tax_excluded", {}) or {}
+                score = item.get("sustainability_score", {}) or {}
+                basis["electricity_slots"].append([
+                    dt_s,
+                    item.get("end_date"),
+                    incl.get("amount"),
+                    excl.get("amount"),
+                    score.get("permille"),
+                ])
+
+        basis["electricity_slots"].sort(key=lambda x: x[0])
 
         # Summary slice
         summary = self.storage.summary_cache if self.storage else None
@@ -469,8 +509,17 @@ class Plugin:
         if not isinstance(new_basis, dict):
             new_basis = {}
 
-        old_hours = old_basis.get("summary_hours") or []
-        new_hours = new_basis.get("summary_hours") or []
+        use_quarters = bool(
+            old_basis.get("electricity_slots") or new_basis.get("electricity_slots")
+        )
+        if use_quarters:
+            old_hours = old_basis.get("electricity_slots") or []
+            new_hours = new_basis.get("electricity_slots") or []
+            labels = ["end", "elec_raw", "sell_raw", "score"]
+        else:
+            old_hours = old_basis.get("summary_hours") or []
+            new_hours = new_basis.get("summary_hours") or []
+            labels = ["elec_raw", "sell_raw", "gas_raw", "group", "score"]
 
         old_map = { (x[0] if isinstance(x, list) and x else ""): x for x in old_hours }
         new_map = { (x[0] if isinstance(x, list) and x else ""): x for x in new_hours }
@@ -493,9 +542,7 @@ class Plugin:
                 lines.append(f"- {k} removed")
                 continue
 
-            # fields: purchase, sell, gas, group, score (indexes 1..5)
             diffs = []
-            labels = ["elec_raw", "sell_raw", "gas_raw", "group", "score"]
             for idx, label in enumerate(labels, start=1):
                 ov = o[idx] if len(o) > idx else None
                 nv = n[idx] if len(n) > idx else None
@@ -560,8 +607,16 @@ class Plugin:
 
         self.storage.save_state()
 
-        # Build widget payload (still based on summary/gas caches)
-        forecast_payload = self.api.build_forecast_payload_from_summary(
+        return self._write_forecast_json()
+
+    def _write_forecast_json(self):
+        """Write forecast/current-slot JSON without changing its content timestamp."""
+        if not self.storage:
+            return False
+
+        now_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        forecast_payload = self.api.build_forecast_payload(
+            self.storage.electricity_cache,
             self.storage.summary_cache,
             self.storage.gas_cache,
             updated=self.storage.state.get("last_cache_change", now_ts),
@@ -695,6 +750,15 @@ class Plugin:
         self.storage.state["last_remote_fetch"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.storage.save_state()
 
+        try:
+            electricity = self.api.get_electricity_quarter_hourly()
+            self.storage.electricity_cache = electricity
+            self.storage.save_electricity_cache()
+        except Exception as e:
+            # Keep the last good quarter-hour cache. The authenticated summary
+            # below remains available as a backward-compatible fallback.
+            self.displaylog(f"Kwartierprijzen ophalen mislukt: {e}", Log.ERROR)
+
         got_summary = False
         try:
             summary = self.api.get_summary(self.connection_uuid)
@@ -729,28 +793,51 @@ class Plugin:
             self.displaylog("Gas fallback skip: summary bevat gas_price voor huidig uur.", Log.DEBUG)
 
     def _update_devices_from_cache(self, update_forecast_json=False):
-        prices = self.api.parse_current_prices_from_summary(self.storage.summary_cache)
+        prices = self.api.parse_current_electricity_prices(
+            self.storage.electricity_cache,
+            self.storage.summary_cache,
+        )
         gas_fb = self.api.parse_gas_fallback(self.storage.gas_cache)
 
         elec_incl = elec_sell_ex_tax = gas_incl = None
         timeslot = "n.v.t."
+        source = "n.v.t."
+        slot_key = None
 
         if prices:
             elec_incl = prices.get("electricity_price_incl")
             elec_sell_ex_tax = prices.get("electricity_sell_price_ex_tax")
-            gas_incl = prices.get("gas_price_incl")
             timeslot = prices.get("timeslot", "n.v.t.")
+            source = prices.get("source", "n.v.t.")
+            slot_key = prices.get("slot_start") or timeslot
+
+        gas_incl = self.api.parse_current_gas_from_summary(self.storage.summary_cache)
 
         if gas_incl is None:
             gas_incl = gas_fb.get("gas_price_incl")
 
-        self._update_custom(UNIT_ELEC_INCL, elec_incl)
-        self._update_custom(UNIT_ELEC_SELL_EX_TAX, elec_sell_ex_tax)
+        previous_slot = self.storage.state.get("last_active_electricity_slot")
+        slot_changed = bool(slot_key and slot_key != previous_slot)
+
+        # Force one Domoticz update at every slot boundary, even when two
+        # consecutive quarter-hour prices happen to be identical.
+        self._update_custom(UNIT_ELEC_INCL, elec_incl, force=slot_changed)
+        self._update_custom(UNIT_ELEC_SELL_EX_TAX, elec_sell_ex_tax, force=slot_changed)
         self._update_custom(UNIT_GAS_INCL, gas_incl, force=True)
+
+        if slot_changed:
+            self.storage.state["last_active_electricity_slot"] = slot_key
+            self.storage.save_state()
+            # Refresh is_current/electricity_now while preserving the timestamp
+            # of the last substantive remote-data change.
+            self._write_forecast_json()
 
         last_remote_change = self.storage.state.get("last_remote_change", "n.v.t.")
         last_remote_fetch = self.storage.state.get("last_remote_fetch", "n.v.t.")
-        self._update_text(UNIT_LASTUPDATE, f"slot={timeslot} | change={last_remote_change} | fetch={last_remote_fetch}")
+        self._update_text(
+            UNIT_LASTUPDATE,
+            f"slot={timeslot} | source={source} | change={last_remote_change} | fetch={last_remote_fetch}",
+        )
 
         if update_forecast_json:
             self._maybe_update_forecast_json(force=False)

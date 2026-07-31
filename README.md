@@ -5,11 +5,12 @@ Unofficial [Domoticz](https://www.domoticz.com/) plugin for [Zonneplan](https://
 ## Features
 
 - **Automatic connection UUID discovery** — no need to look up or fill in any UUIDs manually
-- **Dynamic electricity price** (€/kWh, current hour, incl. VAT)
-- **Electricity sell price excluding energy tax** (€/kWh, current hour)
+- **Quarter-hour electricity price** (€/kWh, active 15-minute slot, incl. VAT)
+- **Electricity sell price excluding energy tax** (€/kWh, active 15-minute slot)
 - **Dynamic gas price** (€/m³, incl. VAT)
-- **Forecast JSON** — full price forecast for use in custom widgets (past 2h + next 38h)
-- **Fingerprint-based updates** — forecast is only written when data actually changes
+- **Forecast JSON** — quarter-hour forecast for custom widgets (past 2h + next 38h)
+- **Hourly fallback** — keeps working if the public quarter-hour endpoint is temporarily unavailable
+- **Fingerprint-based timestamp** — `updated` changes only when remote data changes
 - **Built-in login flow** — authenticate directly from Domoticz via magic link email, no external tools needed
 - **Automatic token refresh** — stays authenticated without manual intervention
 
@@ -77,7 +78,9 @@ sudo systemctl restart domoticz
 
 ## How it works
 
-Price data is fetched from the Zonneplan API at every full hour (00:00–23:00). On startup, data is fetched immediately if already authenticated. The forecast JSON device contains a full JSON payload intended for use with a custom Domoticz widget.
+Price data is fetched from the Zonneplan API at every full hour (00:00–23:00). On startup, data is fetched immediately if already authenticated. The cached quarter-hour chart is evaluated every heartbeat, so the active devices switch locally at `:00`, `:15`, `:30` and `:45` without extra API calls. A slot change is written to Domoticz even if two consecutive prices are identical.
+
+The public endpoint `/api/consumer-prices/charts/electricity-quarter-hourly` is the primary electricity source. The authenticated summary remains the fallback electricity source and supplies the current gas price where available.
 
 The base sell price comes directly from Zonneplan's
 `electricity_price_excl_tax` API field. It is not calculated by subtracting a
@@ -86,9 +89,18 @@ The conditional 10% Zonnebonus is not included in this API field. Negative sell
 prices are preserved so the value can be used directly by export-limiting
 automations.
 
-The Forecast JSON contains `electricity_sell_now_ex_tax` for the current hour
+The Forecast JSON contains `electricity_sell_now_ex_tax` for the current slot
 and both `sell_price_ex_tax_raw` and `sell_price_ex_tax` for every item in
-`hours`.
+`hours`. Existing widget keys are preserved. Version 1.2 adds `source`,
+`interval_minutes`, `end_datetime` and `local_end_datetime`. The `updated`
+timestamp changes only when remote content changes; `is_current` and the two
+current electricity values are refreshed at every slot boundary.
+
+## Upgrade from v1.1
+
+Stop Domoticz, replace the plugin files with the files from this archive, and start Domoticz again. Keep the existing `data/` folder: it contains the login token, connection UUID and state. The plugin creates `data/electricity_quarter_hourly_cache.json` automatically.
+
+The existing hardware entry and devices are reused, so their IDX numbers do not change.
 
 After login, the plugin calls `/user-accounts/me` to discover your electricity connection UUID automatically and stores it locally — you never need to find or enter it yourself.
 

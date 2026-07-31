@@ -2,6 +2,7 @@
 
 BASE_URL = "https://app-api.zonneplan.nl"
 APP_VERSION = "5.10.1"
+ELECTRICITY_QUARTER_HOURLY_PATH = "/api/consumer-prices/charts/electricity-quarter-hourly"
 
 LOGIN_COOLDOWN_SECONDS = 3600
 LOGIN_PENDING_TIMEOUT_SECONDS = 900
@@ -22,7 +23,8 @@ DAILY_FETCH_WINDOW_SECONDS = 60
 # Fixed heartbeat
 HEARTBEAT_SECONDS = 30
 
-# Forecast size for widget
+# Forecast window for widget. These values are durations, not item counts;
+# quarter-hour data therefore contains four entries per hour.
 FORECAST_PAST_HOURS = 2
 FORECAST_FUTURE_HOURS = 38
 

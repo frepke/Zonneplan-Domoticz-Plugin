@@ -12,11 +12,13 @@ class Storage:
         self.token_file = os.path.join(self.base_dir, "token.json")
         self.state_file = os.path.join(self.base_dir, "state.json")
         self.summary_cache_file = os.path.join(self.base_dir, "summary_cache.json")
+        self.electricity_cache_file = os.path.join(self.base_dir, "electricity_quarter_hourly_cache.json")
         self.gas_cache_file = os.path.join(self.base_dir, "gas_cache.json")
 
         self.token = None
         self.state = {}
         self.summary_cache = None
+        self.electricity_cache = None
         self.gas_cache = None
 
         os.makedirs(self.base_dir, exist_ok=True)
@@ -42,6 +44,7 @@ class Storage:
         self.token = self._load_json(self.token_file, default=None)
         self.state = self._load_json(self.state_file, default={})
         self.summary_cache = self._load_json(self.summary_cache_file, default=None)
+        self.electricity_cache = self._load_json(self.electricity_cache_file, default=None)
         self.gas_cache = self._load_json(self.gas_cache_file, default=None)
 
     def save_all(self):
@@ -50,6 +53,8 @@ class Storage:
             self.save_token()
         if self.summary_cache is not None:
             self.save_summary_cache()
+        if self.electricity_cache is not None:
+            self.save_electricity_cache()
         if self.gas_cache is not None:
             self.save_gas_cache()
 
@@ -61,6 +66,9 @@ class Storage:
 
     def save_summary_cache(self):
         self._save_json(self.summary_cache_file, self.summary_cache)
+
+    def save_electricity_cache(self):
+        self._save_json(self.electricity_cache_file, self.electricity_cache)
 
     def save_gas_cache(self):
         self._save_json(self.gas_cache_file, self.gas_cache)
